@@ -87,7 +87,7 @@ def test_matching_policy_loss_date_and_claim_type_finds_the_recorded_notificatio
         pytest.param({"policy_number": "MOT-4472"}, id="policy_number_differs"),
     ],
 )
-def test_find_matching_requires_all_three_fields(
+def test_notification_agreeing_on_only_two_fields_is_not_a_duplicate(
     repository: NotificationRepository,
     overrides: dict[str, Any],
 ) -> None:
