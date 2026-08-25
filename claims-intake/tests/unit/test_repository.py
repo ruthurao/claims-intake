@@ -49,12 +49,21 @@ def test_recorded_notification_gets_a_contract_claim_reference(
 def test_claim_references_are_unique_and_never_reissued(
     repository: NotificationRepository,
 ) -> None:
-    references = [repository.record(make_notification()).claim_reference for _ in range(5)]
+    first = repository.record(make_notification()).claim_reference
+    second = repository.record(make_notification()).claim_reference
+    third = repository.record(make_notification()).claim_reference
+    fourth = repository.record(make_notification()).claim_reference
+    fifth = repository.record(make_notification()).claim_reference
+    references = [first, second, third, fourth, fifth]
     assert len(set(references)) == 5
-    assert references[0].endswith("000001")
-    assert references[1].endswith("000002")
-    assert references[-1].endswith("000005")
-    assert all(CLAIM_REFERENCE.fullmatch(reference) for reference in references)
+    assert first.endswith("000001")
+    assert second.endswith("000002")
+    assert fifth.endswith("000005")
+    assert CLAIM_REFERENCE.fullmatch(first)
+    assert CLAIM_REFERENCE.fullmatch(second)
+    assert CLAIM_REFERENCE.fullmatch(third)
+    assert CLAIM_REFERENCE.fullmatch(fourth)
+    assert CLAIM_REFERENCE.fullmatch(fifth)
 
 
 def test_matching_policy_loss_date_and_claim_type_finds_the_recorded_notification(
