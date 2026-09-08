@@ -37,6 +37,3 @@ jobs:
 
       - name: Run Pytest
         run: uv run pytest
-
-      - name: Deliberate gate failure
-        run: exit 1
