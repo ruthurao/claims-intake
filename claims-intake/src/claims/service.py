@@ -18,8 +18,8 @@ Day 3 assignment. Build the remaining rules test-first against
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from typing import Any
 
 from claims.models import (
