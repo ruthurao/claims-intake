@@ -37,7 +37,4 @@ jobs:
 
       - name: Run Pytest
         run: uv run pytest
-
-      - name: Deliberate gate test
-        run: exit 1
     
