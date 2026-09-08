@@ -19,6 +19,7 @@ Day 3 assignment. Build the remaining rules test-first against
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from collections.abc import Callable
 from typing import Any
 
 from claims.models import (
@@ -94,68 +95,88 @@ def evaluate_policy_exists(
 def evaluate_loss_after_inception(
     notification: NotificationRequest,
     policy: Policy,
-) -> ValidationOutcome:
+) -> RuleFailure | None:
     """V-2. The loss must not precede policy inception.
 
     The boundary is stated in contract section 4.2 and in WI-0142 AC-3. A loss on
     the inception date is covered.
     """
     if notification.loss_date < policy.effective_date:
-        return ValidationOutcome.failed(
-            rule="V-2",
-            code="LOSS_BEFORE_INCEPTION",
-            loss_date=notification.loss_date,
-            effective_date=policy.effective_date,
+        return RuleFailure(
+            rule=RuleId.V2,
+            code=ErrorCode.LOSS_BEFORE_INCEPTION,
         )
-    return ValidationOutcome.ok()
+    return None
 
 
 def evaluate_loss_before_expiry(
     notification: NotificationRequest,
     policy: Policy,
-) -> ValidationOutcome:
+) -> RuleFailure | None:
     """V-3. The loss must not fall after the policy expiry date."""
     if notification.loss_date > policy.expiry_date:
-        return ValidationOutcome.failed(
-            rule="V-3",
-            code="LOSS_AFTER_EXPIRY",
-            loss_date=notification.loss_date,
-            expiry_date=policy.expiry_date,
+        return RuleFailure(
+            rule=RuleId.V3,
+            code=ErrorCode.LOSS_AFTER_EXPIRY,
         )
-    return ValidationOutcome.ok()
+    return None
 
 
 def evaluate_amount_within_limit(
     notification: NotificationRequest,
     policy: Policy,
-) -> ValidationOutcome:
+) -> RuleFailure | None:
     """V-4. The estimated amount must not exceed the policy limit.
 
     An amount equal to the limit is within cover, per contract section 4.2.
     """
     if notification.estimated_amount > policy.limit:
-        return ValidationOutcome.failed(
-            rule="V-4",
-            code="AMOUNT_EXCEEDS_LIMIT",
-            estimated_amount=notification.estimated_amount,
-            limit=policy.limit,
+        return RuleFailure(
+            rule=RuleId.V4,
+            code=ErrorCode.AMOUNT_EXCEEDS_LIMIT,
         )
-    return ValidationOutcome.ok()
+    return None
 
 
 def evaluate_claim_type_covered(
     notification: NotificationRequest,
     policy: Policy,
-) -> ValidationOutcome:
+) -> RuleFailure | None:
     """V-5. The claim type must be permitted on the policy's product."""
     if notification.claim_type not in policy.permitted_claim_types:
-        return ValidationOutcome.failed(
-            rule="V-5",
-            code="TYPE_NOT_COVERED",
-            claim_type=notification.claim_type,
-            permitted_claim_types=policy.permitted_claim_types,
+        return RuleFailure(
+            rule=RuleId.V5,
+            code=ErrorCode.TYPE_NOT_COVERED,
         )
-    return ValidationOutcome.ok()
+    return None
+
+
+def evaluate_policy_cancelled(
+    notification: NotificationRequest,
+    policy: Policy,
+) -> RuleFailure | None:
+    """V-7. A loss on or after cancellation is not covered."""
+    if (
+        policy.cancellation_date is not None
+        and notification.loss_date >= policy.cancellation_date
+    ):
+        return RuleFailure(
+            rule=RuleId.V7,
+            code=ErrorCode.POLICY_CANCELLED,
+        )
+    return None
+
+
+POLICY_RULES: tuple[
+    Callable[[NotificationRequest, Policy], RuleFailure | None],
+    ...,
+] = (
+    evaluate_policy_cancelled,
+    evaluate_loss_after_inception,
+    evaluate_loss_before_expiry,
+    evaluate_amount_within_limit,
+    evaluate_claim_type_covered,
+)
 
 
 def evaluate_notification(
@@ -169,32 +190,10 @@ def evaluate_notification(
     It is fixed by contract section 4.1 and by nothing else. If you find yourself
     choosing an order here, the contract is incomplete and the fix belongs there.
     """
-    if policy.cancellation_date is not None and notification.loss_date >= policy.cancellation_date:
-        return RuleFailure(
-            rule=RuleId.V7,
-            code=ErrorCode.POLICY_CANCELLED,
-        )
-
-    if notification.loss_date < policy.effective_date:
-        return RuleFailure(
-            rule=RuleId.V2,
-            code=ErrorCode.LOSS_BEFORE_INCEPTION,
-        )
-    if notification.loss_date > policy.expiry_date:
-        return RuleFailure(
-            rule=RuleId.V3,
-            code=ErrorCode.LOSS_AFTER_EXPIRY,
-        )
-    if notification.estimated_amount > policy.limit:
-        return RuleFailure(
-            rule=RuleId.V4,
-            code=ErrorCode.AMOUNT_EXCEEDS_LIMIT,
-        )
-    if notification.claim_type not in policy.permitted_claim_types:
-        return RuleFailure(
-            rule=RuleId.V5,
-            code=ErrorCode.TYPE_NOT_COVERED,
-        )
+    for rule in POLICY_RULES:
+        failure = rule(notification, policy)
+        if failure is not None:
+            return failure
     return None
 
 
