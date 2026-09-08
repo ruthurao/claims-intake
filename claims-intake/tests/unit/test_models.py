@@ -12,6 +12,7 @@ import pytest
 from pydantic import ValidationError
 
 from claims.models import (
+    ClaimRecord,
     ErrorCode,
     NotificationRequest,
     Policy,
@@ -155,6 +156,42 @@ def test_policy_accepts_null_cancellation_date(policy_client: StubPolicyClient) 
     assert policy.cancellation_date is None
     assert policy.effective_date == date(2026, 3, 1)
     assert policy.limit == Decimal("50000.00")
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        pytest.param({"limit": "0.00"}, id="zero_limit"),
+        pytest.param({"limit": "50000.001"}, id="limit_three_decimal_places"),
+        pytest.param({"permitted_claim_types": ("flood",)}, id="unknown_claim_type"),
+        pytest.param({"policy_number": ""}, id="empty_policy_number"),
+        pytest.param({"product": ""}, id="empty_product"),
+    ],
+)
+def test_policy_rejects_invalid_constraints(
+    policy_client: StubPolicyClient,
+    changes: dict[str, object],
+) -> None:
+    record = policy_client.get_policy("MOT-4471")
+    payload = {
+        "policy_number": record.policy_number,
+        "product": record.product,
+        "effective_date": record.effective_date,
+        "expiry_date": record.expiry_date,
+        "cancellation_date": record.cancellation_date,
+        "limit": record.limit,
+        "permitted_claim_types": record.permitted_claim_types,
+    }
+    payload.update(changes)
+    with pytest.raises(ValidationError):
+        Policy.model_validate(payload)
+
+
+def test_claim_record_is_distinct_from_a_request() -> None:
+    notification = NotificationRequest.model_validate(_payload())
+    claim = ClaimRecord.from_notification(notification)
+    assert isinstance(claim, ClaimRecord)
+    assert not isinstance(notification, ClaimRecord)
 
 
 def test_policy_preserves_cancellation_date(policy_client: StubPolicyClient) -> None:

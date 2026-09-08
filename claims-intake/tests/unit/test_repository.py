@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from claims.models import NotificationRequest, RecordedNotification
+from claims.models import ClaimRecord, NotificationRequest, RecordedNotification
 from claims.repository import NotificationRepository
 
 CLAIM_REFERENCE = re.compile(r"^CLM-\d{4}-\d{6}$")
@@ -31,11 +31,15 @@ def make_notification(**overrides: object) -> NotificationRequest:
     return NotificationRequest.model_validate(payload)
 
 
+def make_claim(**overrides: object) -> ClaimRecord:
+    return ClaimRecord.from_notification(make_notification(**overrides))
+
+
 def test_recorded_notification_gets_a_contract_claim_reference(
     repository: NotificationRepository,
 ) -> None:
     notification = make_notification()
-    recorded = repository.record(notification)
+    recorded = repository.record(ClaimRecord.from_notification(notification))
     assert isinstance(recorded, RecordedNotification)
     assert CLAIM_REFERENCE.fullmatch(recorded.claim_reference)
     assert recorded.claim_reference == f"CLM-{datetime.now(tz=UTC).date().year}-000001"
@@ -49,11 +53,11 @@ def test_recorded_notification_gets_a_contract_claim_reference(
 def test_claim_references_are_unique_and_never_reissued(
     repository: NotificationRepository,
 ) -> None:
-    first = repository.record(make_notification()).claim_reference
-    second = repository.record(make_notification()).claim_reference
-    third = repository.record(make_notification()).claim_reference
-    fourth = repository.record(make_notification()).claim_reference
-    fifth = repository.record(make_notification()).claim_reference
+    first = repository.record(make_claim()).claim_reference
+    second = repository.record(make_claim()).claim_reference
+    third = repository.record(make_claim()).claim_reference
+    fourth = repository.record(make_claim()).claim_reference
+    fifth = repository.record(make_claim()).claim_reference
     references = [first, second, third, fourth, fifth]
     assert len(set(references)) == 5
     assert first.endswith("000001")
@@ -69,7 +73,7 @@ def test_claim_references_are_unique_and_never_reissued(
 def test_matching_policy_loss_date_and_claim_type_finds_the_recorded_notification(
     repository: NotificationRepository,
 ) -> None:
-    recorded = repository.record(make_notification())
+    recorded = repository.record(make_claim())
     found = repository.find_matching(
         recorded.policy_number,
         recorded.loss_date,
@@ -91,8 +95,8 @@ def test_notification_agreeing_on_only_two_fields_is_not_a_duplicate(
     repository: NotificationRepository,
     overrides: dict[str, Any],
 ) -> None:
-    recorded = repository.record(make_notification())
-    candidate = make_notification(**overrides)
+    recorded = repository.record(make_claim())
+    candidate = make_claim(**overrides)
     found = repository.find_matching(
         candidate.policy_number,
         candidate.loss_date,
@@ -116,7 +120,7 @@ def test_wi0151_ac3_rejected_notification_leaves_nothing_to_duplicate(
         claim_type="theft",
         estimated_amount="12500.00",
     )
-    repository.record(make_notification())
+    repository.record(make_claim())
     assert (
         repository.find_matching(
             rejected.policy_number,
@@ -140,10 +144,17 @@ def test_wi0151_ac3_retry_of_unrecorded_submission_is_not_a_duplicate(
         is None
     )
     retry = make_notification()
-    recorded = repository.record(retry)
+    recorded = repository.record(ClaimRecord.from_notification(retry))
     found = repository.find_matching(
         retry.policy_number,
         retry.loss_date,
         retry.claim_type,
     )
     assert found is recorded
+
+
+def test_record_rejects_unapproved_notification(
+    repository: NotificationRepository,
+) -> None:
+    with pytest.raises(TypeError, match="requires a ClaimRecord"):
+        repository.record(make_notification())  # type: ignore[arg-type]

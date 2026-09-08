@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 
-from claims.models import ClaimType, NotificationRequest, RecordedNotification
+from claims.models import ClaimRecord, ClaimType, RecordedNotification
 
 
 class NotificationRepository:
@@ -24,22 +24,25 @@ class NotificationRepository:
         self._records: list[RecordedNotification] = []
         self._next_sequence: int = 1
 
-    def record(self, notification: NotificationRequest) -> RecordedNotification:
+    def record(self, claim: ClaimRecord) -> RecordedNotification:
         """Write a notification and return it with its issued claim reference.
 
         The reference format is fixed by contract section 3. References are unique
-        and are never reissued.
+        and are never reissued. Only a claim that has passed service validation can
+        reach this method.
         """
+        if not isinstance(claim, ClaimRecord):
+            raise TypeError("record() requires a ClaimRecord approved by the service")
         year = datetime.now(tz=UTC).date().year
         claim_reference = f"CLM-{year}-{self._next_sequence:06d}"
         self._next_sequence += 1
         recorded = RecordedNotification(
             claim_reference=claim_reference,
-            policy_number=notification.policy_number,
-            loss_date=notification.loss_date,
-            claim_type=notification.claim_type,
-            estimated_amount=notification.estimated_amount,
-            description=notification.description,
+            policy_number=claim.policy_number,
+            loss_date=claim.loss_date,
+            claim_type=claim.claim_type,
+            estimated_amount=claim.estimated_amount,
+            description=claim.description,
         )
         self._records.append(recorded)
         return recorded

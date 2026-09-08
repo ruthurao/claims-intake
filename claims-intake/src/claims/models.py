@@ -121,13 +121,23 @@ class Policy(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True, from_attributes=True)
 
-    policy_number: str
-    product: str
+    policy_number: str = Field(min_length=1)
+    product: str = Field(min_length=1)
     effective_date: date
     expiry_date: date
     cancellation_date: date | None
-    limit: Decimal
-    permitted_claim_types: tuple[str, ...]
+    limit: Annotated[Decimal, Field(gt=0)]
+    permitted_claim_types: tuple[ClaimType, ...]
+
+    @field_validator("limit")
+    @classmethod
+    def limit_has_at_most_two_places(cls, value: Decimal) -> Decimal:
+        if not value.is_finite():
+            raise ValueError("limit must be a finite decimal")
+        exponent = value.as_tuple().exponent
+        if isinstance(exponent, int) and exponent < -2:
+            raise ValueError("limit must have at most two decimal places")
+        return value
 
 
 class RuleFailure(BaseModel):
@@ -158,3 +168,18 @@ class RecordedNotification(BaseModel):
     claim_type: ClaimType
     estimated_amount: Decimal
     description: str | None = None
+
+
+class ClaimRecord(NotificationRequest):
+    """A validated notification approved for persistence.
+
+    A request becomes a claim record only after all business rules pass. Keeping
+    this as a separate type prevents the repository API from accepting a request
+    that should have been rejected.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    @classmethod
+    def from_notification(cls, notification: NotificationRequest) -> ClaimRecord:
+        return cls.model_validate(notification.model_dump())
