@@ -213,3 +213,132 @@ def test_maps_policy_lookup_failures_over_http(
 
     assert detail["dependency"] == "policy-master"
     assert detail["policy_number"] == "MOT-4471"
+
+def test_rejects_invalid_json() -> None:
+    response = client_for().post(
+        "/notifications",
+        content="{not valid json",
+        headers={"content-type": "application/json"},
+    )
+
+    detail = assert_error(
+        response,
+        expected_status=400,
+        expected_code="MALFORMED_REQUEST",
+    )
+
+    assert detail["field"] == "body"
+
+def test_rejects_unknown_claim_type() -> None:
+    payload = {
+        **valid_payload(),
+        "claim_type": "flood",
+    }
+
+    detail = assert_error(
+        client_for().post("/notifications", json=payload),
+        expected_status=400,
+        expected_code="MALFORMED_REQUEST",
+    )
+
+    assert detail["field"] == "claim_type"
+
+def test_rejects_datetime_instead_of_calendar_date() -> None:
+    payload = {
+        **valid_payload(),
+        "loss_date": "2026-04-02T12:00:00Z",
+    }
+
+    detail = assert_error(
+        client_for().post("/notifications", json=payload),
+        expected_status=400,
+        expected_code="MALFORMED_REQUEST",
+    )
+
+    assert detail["field"] == "loss_date"
+
+def test_rejects_amount_with_more_than_two_decimal_places() -> None:
+    payload = {
+        **valid_payload(),
+        "estimated_amount": "4200.001",
+    }
+
+    detail = assert_error(
+        client_for().post("/notifications", json=payload),
+        expected_status=400,
+        expected_code="MALFORMED_REQUEST",
+    )
+
+    assert detail["field"] == "estimated_amount"
+
+def test_accepts_loss_on_inception_date_over_http() -> None:
+    payload = {
+        "policy_number": "MOT-4479",
+        "loss_date": "2026-03-15",
+        "claim_type": "collision",
+        "estimated_amount": "5000.00",
+    }
+
+    response = client_for().post("/notifications", json=payload)
+
+    assert response.status_code == 201
+    assert response.json()["status"] == "recorded"
+
+def test_accepts_loss_on_expiry_date_over_http() -> None:
+    payload = {
+        "policy_number": "MOT-4489",
+        "loss_date": "2026-02-28",
+        "claim_type": "theft",
+        "estimated_amount": "8000.00",
+    }
+
+    response = client_for().post("/notifications", json=payload)
+
+    assert response.status_code == 201
+    assert response.json()["status"] == "recorded"
+
+def test_accepts_amount_equal_to_limit_over_http() -> None:
+    payload = {
+        "policy_number": "MOT-4502",
+        "loss_date": "2026-03-08",
+        "claim_type": "collision",
+        "estimated_amount": "10000.00",
+    }
+
+    response = client_for().post("/notifications", json=payload)
+
+    assert response.status_code == 201
+    assert response.json()["status"] == "recorded"
+
+def test_rejects_loss_on_cancellation_date_over_http() -> None:
+    payload = {
+        "policy_number": "MOT-4497",
+        "loss_date": "2026-01-15",
+        "claim_type": "glass",
+        "estimated_amount": "480.00",
+    }
+
+    detail = assert_error(
+        client_for().post("/notifications", json=payload),
+        expected_status=422,
+        expected_code="POLICY_CANCELLED",
+    )
+
+    assert detail["rule"] == "V-7"
+    assert detail["loss_date"] == "2026-01-15"
+    assert detail["cancellation_date"] == "2026-01-15"
+
+def test_rejected_request_is_not_persisted_over_http() -> None:
+    client = client_for()
+
+    rejected_payload = {
+        **valid_payload(),
+        "estimated_amount": "50000.01",
+    }
+
+    rejected = client.post("/notifications", json=rejected_payload)
+    accepted = client.post("/notifications", json=valid_payload())
+
+    assert rejected.status_code == 422
+    assert rejected.json()["code"] == "AMOUNT_EXCEEDS_LIMIT"
+    assert accepted.status_code == 201

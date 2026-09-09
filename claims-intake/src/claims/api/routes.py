@@ -79,7 +79,10 @@ def create_app(
         errors = exc.errors()
         first_error = errors[0] if errors else {}
         location = first_error.get("loc", ())
-        field = location[-1] if location else "body"
+        field = next(
+            (part for part in location[1:] if isinstance(part, str)),
+            "body",
+        )
         return _error_response(
             code=ErrorCode.MALFORMED_REQUEST.value,
             message="Request body could not be interpreted.",
