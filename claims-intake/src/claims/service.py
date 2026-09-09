@@ -5,12 +5,10 @@ is why it can be tested by calling a function with a typed object and asserting 
 the result with no server running. It does not know where notifications are
 stored either. It knows the rules.
 
-`evaluate_policy_exists` ships written. It is the pattern every other rule
-follows: take the notification and whatever it needs, decide, and return a
-`ValidationOutcome` that names the rule and carries the values the decision was
-made on. Nothing prints, nothing raises for an ordinary refusal, and nothing
-reaches for a status code, because a status code is a fact about HTTP and this
-module does not know about HTTP.
+`evaluate_policy_exists` ships written. The pure policy rules take a notification
+and policy, decide, and return a `RuleFailure` or `None`. Nothing prints, nothing
+raises for an ordinary refusal, and nothing reaches for a status code, because a
+status code is a fact about HTTP and this module does not know about HTTP.
 
 Day 3 assignment. Build the remaining rules test-first against
 `docs/api-contract.md` section 4.
