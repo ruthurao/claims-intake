@@ -34,6 +34,8 @@ It was effective for:
 
 Because the surrounding route structure already existed, these tasks were more localized and required less architectural investigation.
 
+It also hallucinated a gap. While preparing for review it suggested treating `attempted_at` on the 503 (and the other policy-master 5xx bodies) as a missing change. That field is already set in `lookup_failure` in `responses.py`. The HTTP tests only assert `dependency` and `policy_number`; they do not assert `attempted_at`. The agent collapsed “test does not mention this key” into “the service does not return it.” I already had the contract field. The useful follow-up was at most `assert "attempted_at" in detail`, not a production change.
+
 ## Preference
 
 I prefer the **normal agent for multi-file implementation and debugging** because it can trace behavior across the repository, run validation, interpret failures, and iterate on related code.
