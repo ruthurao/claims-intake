@@ -35,3 +35,6 @@ dist/
 # Logs
 *.log
 status-tracker-nightmare/
+
+# Day 4 parallel-agent checkouts
+.worktrees/

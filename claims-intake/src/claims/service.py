@@ -195,6 +195,41 @@ def evaluate_notification(
     return None
 
 
+def _failure_detail(
+    notification: NotificationRequest,
+    policy: Policy,
+    failure: RuleFailure,
+) -> dict[str, Any]:
+    if failure.code == ErrorCode.POLICY_CANCELLED:
+        return {
+            "loss_date": notification.loss_date.isoformat(),
+            "cancellation_date": policy.cancellation_date.isoformat()
+            if policy.cancellation_date is not None
+            else None,
+        }
+    if failure.code == ErrorCode.LOSS_BEFORE_INCEPTION:
+        return {
+            "loss_date": notification.loss_date.isoformat(),
+            "effective_date": policy.effective_date.isoformat(),
+        }
+    if failure.code == ErrorCode.LOSS_AFTER_EXPIRY:
+        return {
+            "loss_date": notification.loss_date.isoformat(),
+            "expiry_date": policy.expiry_date.isoformat(),
+        }
+    if failure.code == ErrorCode.AMOUNT_EXCEEDS_LIMIT:
+        return {
+            "estimated_amount": str(notification.estimated_amount),
+            "limit": str(policy.limit),
+        }
+    if failure.code == ErrorCode.TYPE_NOT_COVERED:
+        return {
+            "claim_type": notification.claim_type,
+            "permitted_claim_types": list(policy.permitted_claim_types),
+        }
+    return {}
+
+
 def submit_notification(
     notification: NotificationRequest,
     policy_client: PolicyClient,
@@ -221,6 +256,7 @@ def submit_notification(
         return ValidationOutcome.failed(
             rule=failure.rule.value,
             code=failure.code.value,
+            **_failure_detail(notification, policy, failure),
         )
 
     # V-6 is evaluated here because duplicate detection requires repository state.
