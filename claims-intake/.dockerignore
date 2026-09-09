@@ -1,0 +1,11 @@
+# Local venv. The image creates its own via `uv sync`.
+.venv/
+
+# Tests are not part of the running service.
+tests/
+
+# Git metadata is not needed in the image.
+.git/
+
+# Day 4 parallel-agent checkouts.
+.worktrees/
