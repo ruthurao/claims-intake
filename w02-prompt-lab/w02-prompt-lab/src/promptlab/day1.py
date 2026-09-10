@@ -84,6 +84,12 @@ def token_count(payload: dict[str, Any], key: str) -> int:
     return value
 
 
+def truncation_error_type(done_reason: object) -> str | None:
+    if done_reason == "length":
+        return "TruncatedResponseError"
+    return None
+
+
 def make_record(
     *,
     run_id: str,
@@ -163,9 +169,7 @@ def main() -> None:
         temperature=temperature,
         num_predict=TRUNCATION_NUM_PREDICT,
     )
-    truncation_error: str | None = None
-    if truncation_payload.get("done_reason") == "length":
-        truncation_error = "TruncatedResponseError"
+    truncation_error = truncation_error_type(truncation_payload.get("done_reason"))
     truncation_record = make_record(
         run_id=run_id,
         model_id=model.model_id,
