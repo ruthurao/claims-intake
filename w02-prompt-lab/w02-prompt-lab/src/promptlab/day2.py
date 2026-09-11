@@ -16,7 +16,7 @@ EXPECTED_CASE_IDS = tuple(f"S{index:02d}" for index in range(1, 13))
 PROMPT_ID = "baseline"
 PROMPT_VERSION = "v0"
 TASK: Literal["summarization"] = "summarization"
-MAX_OUTPUT_TOKENS = 512
+MAX_OUTPUT_TOKENS = 1024
 PROMPT_PATH = PROJECT_ROOT / "src" / "prompts" / "baseline.v0.md"
 CASES_PATH = PROJECT_ROOT / "cases" / "summarization.jsonl"
 
